@@ -58,6 +58,7 @@ export default function Page() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [ownedIds, setOwnedIds] = useState<Set<string>>(new Set());
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [adminPanelVisible, setAdminPanelVisible] = useState(false);
@@ -111,8 +112,10 @@ export default function Page() {
   useEffect(() => {
     if (session?.user) {
       fetchCart();
+      fetchOwned();
     } else {
       setCartItems([]);
+      setOwnedIds(new Set());
     }
   }, [session]);
 
@@ -170,6 +173,19 @@ export default function Page() {
     }
   };
 
+  const fetchOwned = async () => {
+    try {
+      const res = await fetch("/api/user/owned-products");
+      if (!res.ok) return;
+      const data = await res.json();
+      const ids = new Set<string>();
+      data.forEach((op: any) => ids.add(op.product.id));
+      setOwnedIds(ids);
+    } catch (err) {
+      console.error("Error fetching owned products:", err);
+    }
+  };
+
   const handleCartClick = () => {
     console.log("Cart clicked! Session:", session);
     console.log("Cart items:", cartItems);
@@ -187,6 +203,11 @@ export default function Page() {
   const addToCart = async (productId: string) => {
     if (!session?.user) {
       showToast("Please login to add items to cart", "info");
+      return;
+    }
+
+    if (ownedIds.has(productId)) {
+      showToast("You already own this product", "info");
       return;
     }
 
@@ -408,6 +429,7 @@ export default function Page() {
                   <ProductCard
                     product={p}
                     index={i}
+                    purchased={ownedIds.has(p.id)}
                     onClick={() => openModal(p)}
                     onAdd={(ev?: React.MouseEvent) => {
                       ev?.stopPropagation();

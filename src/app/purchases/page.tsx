@@ -69,6 +69,7 @@ export default function MyPurchasesPage() {
     switch (status) {
       case 'COMPLETED': return '#4caf50';
       case 'PENDING': return '#ff9800';
+      case 'REFUNDED': return '#607d8b';
       case 'FAILED': return '#f44336';
       default: return '#9e9e9e';
     }
@@ -78,6 +79,7 @@ export default function MyPurchasesPage() {
     switch (status) {
       case 'COMPLETED': return 'Completed';
       case 'PENDING': return 'Pending';
+      case 'REFUNDED': return 'Canceled';
       case 'FAILED': return 'Failed';
       default: return status;
     }

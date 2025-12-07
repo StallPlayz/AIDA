@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const updated = await prisma.purchase.update({
       where: { id: purchaseId },
       data: {
-        paymentStatus: "CANCELED",
+        paymentStatus: "REFUNDED",
       },
     });
 

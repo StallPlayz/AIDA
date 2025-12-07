@@ -171,12 +171,12 @@ export default function ImprovedCartModal({
             setTimeout(() => {
               onClearCart();
             }, 500);
-          } else if (data.status === "FAILED") {
+          } else if (data.status === "FAILED" || data.status === "REFUNDED") {
             if (autoCheckInterval) {
               clearInterval(autoCheckInterval);
               setAutoCheckInterval(null);
             }
-            setError("Payment verification failed");
+            setError("Payment canceled");
             setStep("failed");
           }
         } catch (err) {

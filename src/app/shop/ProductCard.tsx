@@ -9,11 +9,13 @@ export default function ProductCard({
   index,
   onClick,
   onAdd,
+  purchased = false,
 }: {
   product: Product;
   index: number;
   onClick: () => void;
   onAdd: (e?: React.MouseEvent) => void;
+  purchased?: boolean;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
@@ -59,6 +61,9 @@ export default function ProductCard({
         <h3 className="card-title">{product.title}</h3>
         <p className="card-sub">{product.subtitle}</p>
         <p className="card-desc clamped-desc">{product.description}</p>
+        {purchased && (
+          <div className="owned-pill">You already own this product</div>
+        )}
         <div className="card-footer">
           <div className="price-group">
             {hasDiscount && <span className="price-old">IDR{product.price}</span>}
@@ -68,14 +73,16 @@ export default function ProductCard({
             </div>
           </div>
           <button
-            className="round-add"
+            className={`round-add ${purchased ? "round-owned" : ""}`}
             onClick={(e) => {
+              if (purchased) return;
               e.stopPropagation();
               onAdd(e);
             }}
-            aria-label="add"
+            aria-label={purchased ? "owned" : "add"}
+            disabled={purchased}
           >
-            +
+            {purchased ? "Owned" : "+"}
           </button>
         </div>
       </div>
