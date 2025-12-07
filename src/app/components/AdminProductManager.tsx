@@ -21,6 +21,9 @@ interface Product {
   thumbnailUrl: string;
   category: string;
   status: string;
+  featured: boolean;
+  discountType?: "NONE" | "PERCENT" | "FIXED";
+  discountValue?: number;
 }
 
 interface AdminProductManagerProps {
@@ -687,17 +690,80 @@ export default function AdminProductManager({
     price: "",
     thumbnailUrl: "",
     category: "LIGHTROOM_PRESET",
+    featured: false,
+    discountType: "NONE" as "NONE" | "PERCENT" | "FIXED",
+    discountValue: "",
   });
+
+  const convertFileToWebP = (file: File): Promise<File> =>
+    new Promise((resolve, reject) => {
+      if (
+        file.type === "image/webp" ||
+        file.name.toLowerCase().endsWith(".webp")
+      ) {
+        resolve(file);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onerror = () =>
+        reject(new Error("Failed to read image for WebP conversion"));
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d");
+
+          if (!ctx) {
+            reject(new Error("Could not create canvas context for conversion"));
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0);
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error("WebP conversion failed"));
+                return;
+              }
+              const baseName = file.name.replace(/\.[^.]+$/, "");
+              resolve(
+                new File([blob], `${baseName}.webp`, {
+                  type: "image/webp",
+                  lastModified: Date.now(),
+                })
+              );
+            },
+            "image/webp",
+            0.9
+          );
+        };
+        img.onerror = () =>
+          reject(new Error("Unable to load image for conversion"));
+        img.src = reader.result as string;
+      };
+
+      reader.readAsDataURL(file);
+    });
 
   const uploadImageToSupabase = async (file: File): Promise<string | null> => {
     try {
       setUploadingImage(true);
       setError("");
 
-      console.log("Starting upload for:", file.name, file.type, file.size);
+      const webpFile = await convertFileToWebP(file);
+
+      if (webpFile.size > 5 * 1024 * 1024) {
+        setError("Converted image must be less than 5MB");
+        return null;
+      }
+
+      console.log("Starting upload for:", webpFile.name, webpFile.type, webpFile.size);
 
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", webpFile);
 
       const response = await fetch("/api/upload/image", {
         method: "POST",
@@ -780,6 +846,9 @@ export default function AdminProductManager({
         price: "",
         thumbnailUrl: "",
         category: "LIGHTROOM_PRESET",
+        featured: false,
+        discountType: "NONE",
+        discountValue: "",
       });
       setError("");
       setTimeout(() => {
@@ -817,6 +886,9 @@ export default function AdminProductManager({
         price: "",
         thumbnailUrl: "",
         category: "LIGHTROOM_PRESET",
+        featured: false,
+        discountType: "NONE",
+        discountValue: "",
       });
       setError("");
       setTimeout(() => {
@@ -840,6 +912,9 @@ export default function AdminProductManager({
         price: "",
         thumbnailUrl: "",
         category: "LIGHTROOM_PRESET",
+        featured: false,
+        discountType: "NONE",
+        discountValue: "",
       });
       setError("");
       setTimeout(() => {
@@ -860,10 +935,6 @@ export default function AdminProductManager({
     if (file) {
       if (!file.type.startsWith("image/")) {
         setError("Please select an image file");
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        setError("File size must be less than 5MB");
         return;
       }
 
@@ -903,6 +974,11 @@ export default function AdminProductManager({
           ...formData,
           price: parseInt(formData.price),
           imageUrls: [formData.thumbnailUrl],
+          discountType: formData.discountType,
+          discountValue:
+            formData.discountType === "PERCENT"
+              ? Math.min(100, Math.max(0, parseInt(formData.discountValue || "0")))
+              : Math.max(0, parseInt(formData.discountValue || "0")),
         }),
       });
 
@@ -935,6 +1011,12 @@ export default function AdminProductManager({
       price: product.price.toString(),
       thumbnailUrl: product.thumbnailUrl,
       category: product.category,
+      featured: product.featured,
+      discountType: product.discountType || "NONE",
+      discountValue:
+        typeof product.discountValue === "number"
+          ? product.discountValue.toString()
+          : "",
     });
 
     setIsAnimating(true);
@@ -991,7 +1073,7 @@ export default function AdminProductManager({
   const getStageHeight = () => {
     if (stage === "closed") return "40px";
     if (stage === "edit") return "180px";
-    if (stage === "add") return "650px"; // Increased from 90vh to fixed 650px
+    if (stage === "add") return "80vh";
     if (stage === "manage") return "600px";
     return "40px";
   };
@@ -999,8 +1081,8 @@ export default function AdminProductManager({
   const getStageWidth = () => {
     if (stage === "closed") return "120px";
     if (stage === "edit") return "500px";
-    if (stage === "add") return "600px"; // Increased from 400px to 600px for wider layout
-    if (stage === "manage") return "700px";
+    if (stage === "add") return "820px";
+    if (stage === "manage") return "780px";
     return "120px";
   };
 
@@ -1011,7 +1093,7 @@ export default function AdminProductManager({
           display: "inline-block",
           position: "relative",
           width: "100%",
-          maxWidth: "800px",
+          maxWidth: "980px",
           margin: "0 auto",
         }}
       >
@@ -1024,14 +1106,13 @@ export default function AdminProductManager({
             color: stage === "closed" ? "#222" : "inherit",
             cursor: stage === "closed" ? "pointer" : "default",
             width: "100%",
-            maxWidth: getStageWidth(),
-            height: getStageHeight(),
-            maxHeight: stage === "add" ? "90vh" : "none",
-            display: "flex",
-            alignItems: stage === "closed" ? "center" : "stretch",
-            justifyContent: stage === "closed" ? "center" : "stretch",
-            overflow:
-              stage === "add" || stage === "manage" ? "hidden" : "visible",
+          maxWidth: getStageWidth(),
+          height: getStageHeight(),
+          maxHeight: stage === "add" ? "80vh" : "none",
+          display: "flex",
+          alignItems: stage === "closed" ? "center" : "stretch",
+          justifyContent: stage === "closed" ? "center" : "stretch",
+          overflow: stage === "add" || stage === "manage" ? "hidden" : "visible",
             transition: isAnimating
               ? "all 0.36s cubic-bezier(0.4, 0, 0.2, 1)"
               : "none",
@@ -1055,7 +1136,7 @@ export default function AdminProductManager({
             <span
               style={{ fontSize: "15px", color: "white", userSelect: "none" }}
             >
-              Create New
+              Admin Utilities
             </span>
           )}
 
@@ -1410,6 +1491,8 @@ export default function AdminProductManager({
                     flexDirection: "column",
                     height: "100%",
                     overflow: "hidden",
+                    gap: "12px",
+                    padding: "6px 8px 12px",
                   }}
                 >
                   <div
@@ -1417,9 +1500,10 @@ export default function AdminProductManager({
                     style={{
                       display: "flex",
                       gap: "16px",
-                      justifyContent: "center",
-                      padding: "10px 6px",
-                      flexShrink: 0,
+                      justifyContent: "flex-start",
+                      padding: "10px 12px",
+                      flexWrap: "wrap",
+                      alignItems: "center",
                     }}
                   >
                     <button
@@ -1490,87 +1574,84 @@ export default function AdminProductManager({
                         </>
                       )}
                     </button>
-                  </div>
 
-                  {formData.thumbnailUrl && (
-                    <div
-                      style={{
-                        padding: "10px",
-                        textAlign: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <img
-                        src={formData.thumbnailUrl}
-                        alt="Preview"
+                    {formData.thumbnailUrl && (
+                      <div
                         style={{
-                          maxWidth: "100%",
-                          maxHeight: "120px",
-                          borderRadius: "8px",
-                          objectFit: "cover",
+                          padding: "0 4px",
+                          textAlign: "left",
+                          flexShrink: 0,
                         }}
-                      />
-                    </div>
-                  )}
+                      >
+                        <img
+                          src={formData.thumbnailUrl}
+                          alt="Preview"
+                          style={{
+                            width: "200px",
+                            height: "130px",
+                            borderRadius: "10px",
+                            objectFit: "cover",
+                            boxShadow: "0 4px 14px rgba(0,0,0,0.2)",
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
 
                   <div
                     style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "10px",
-                      padding: "4px 18px 18px 18px",
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "12px",
+                      padding: "4px 18px 16px 18px",
                       overflowY: "auto",
                       flex: 1,
                     }}
                   >
-                    {/* Two column layout for title and subtitle */}
-                    <div style={{ display: "flex", gap: "10px" }}>
-                      <input
-                        style={{
-                          flex: 1,
-                          background: "#f2f2f2",
-                          border: "none",
-                          borderRadius: "8px",
-                          padding: "10px",
-                          fontSize: "14px",
-                          outline: "none",
-                        }}
-                        placeholder="Product Title *"
-                        value={formData.title}
-                        onChange={(e) =>
-                          setFormData({ ...formData, title: e.target.value })
-                        }
-                        required
-                        disabled={loading}
-                      />
-                      <input
-                        style={{
-                          flex: 1,
-                          background: "#f2f2f2",
-                          border: "none",
-                          borderRadius: "8px",
-                          padding: "10px",
-                          fontSize: "14px",
-                          outline: "none",
-                        }}
-                        placeholder="Subtitle"
-                        value={formData.subtitle}
-                        onChange={(e) =>
-                          setFormData({ ...formData, subtitle: e.target.value })
-                        }
-                        disabled={loading}
-                      />
-                    </div>
-
-                    <textarea
+                    <input
                       style={{
                         background: "#f2f2f2",
                         border: "none",
-                        borderRadius: "8px",
-                        padding: "10px",
+                        borderRadius: "10px",
+                        padding: "12px",
                         fontSize: "14px",
                         outline: "none",
-                        minHeight: "60px",
+                      }}
+                      placeholder="Product Title *"
+                      value={formData.title}
+                      onChange={(e) =>
+                        setFormData({ ...formData, title: e.target.value })
+                      }
+                      required
+                      disabled={loading}
+                    />
+                    <input
+                      style={{
+                        background: "#f2f2f2",
+                        border: "none",
+                        borderRadius: "10px",
+                        padding: "12px",
+                        fontSize: "14px",
+                        outline: "none",
+                      }}
+                      placeholder="Subtitle"
+                      value={formData.subtitle}
+                      onChange={(e) =>
+                        setFormData({ ...formData, subtitle: e.target.value })
+                      }
+                      disabled={loading}
+                    />
+
+                    <textarea
+                      style={{
+                        gridColumn: "span 2",
+                        background: "#f2f2f2",
+                        border: "none",
+                        borderRadius: "10px",
+                        padding: "12px",
+                        fontSize: "14px",
+                        outline: "none",
+                        minHeight: "80px",
                         fontFamily: "inherit",
                         resize: "vertical",
                       }}
@@ -1586,59 +1667,125 @@ export default function AdminProductManager({
                       disabled={loading}
                     />
 
-                    {/* Two column layout for price and category */}
-                    <div style={{ display: "flex", gap: "10px" }}>
+                    <input
+                      style={{
+                        background: "#f2f2f2",
+                        border: "none",
+                        borderRadius: "10px",
+                        padding: "12px",
+                        fontSize: "14px",
+                        outline: "none",
+                      }}
+                      type="number"
+                      placeholder="Price (IDR) *"
+                      value={formData.price}
+                      onChange={(e) =>
+                        setFormData({ ...formData, price: e.target.value })
+                      }
+                      required
+                      disabled={loading}
+                    />
+
+                    <select
+                      style={{
+                        background: "#f2f2f2",
+                        border: "none",
+                        borderRadius: "10px",
+                        padding: "12px",
+                        fontSize: "14px",
+                        outline: "none",
+                      }}
+                      value={formData.category}
+                      onChange={(e) =>
+                        setFormData({ ...formData, category: e.target.value })
+                      }
+                      disabled={loading}
+                    >
+                      <option value="LIGHTROOM_PRESET">Lightroom Preset</option>
+                      <option value="PHOTOSHOP_ACTION">
+                        Photoshop Action
+                      </option>
+                      <option value="LUT">LUT</option>
+                      <option value="TEMPLATE">Template</option>
+                      <option value="BUNDLE">Bundle</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+
+                    <label
+                      style={{
+                        gridColumn: "span 2",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        fontSize: "14px",
+                        color: "#333",
+                      }}
+                    >
                       <input
-                        style={{
-                          flex: 1,
-                          background: "#f2f2f2",
-                          border: "none",
-                          borderRadius: "8px",
-                          padding: "10px",
-                          fontSize: "14px",
-                          outline: "none",
-                        }}
-                        type="number"
-                        placeholder="Price (IDR) *"
-                        value={formData.price}
+                        type="checkbox"
+                        checked={formData.featured}
                         onChange={(e) =>
-                          setFormData({ ...formData, price: e.target.value })
+                          setFormData({ ...formData, featured: e.target.checked })
                         }
-                        required
                         disabled={loading}
                       />
+                      Feature this product (pin to top)
+                    </label>
 
-                      <select
-                        style={{
-                          flex: 1,
-                          background: "#f2f2f2",
-                          border: "none",
-                          borderRadius: "8px",
-                          padding: "10px",
-                          fontSize: "14px",
-                          outline: "none",
-                        }}
-                        value={formData.category}
-                        onChange={(e) =>
-                          setFormData({ ...formData, category: e.target.value })
-                        }
-                        disabled={loading}
-                      >
-                        <option value="LIGHTROOM_PRESET">
-                          Lightroom Preset
-                        </option>
-                        <option value="PHOTOSHOP_ACTION">
-                          Photoshop Action
-                        </option>
-                        <option value="LUT">LUT</option>
-                        <option value="TEMPLATE">Template</option>
-                        <option value="BUNDLE">Bundle</option>
-                        <option value="OTHER">Other</option>
-                      </select>
-                    </div>
+                    <select
+                      style={{
+                        background: "#f2f2f2",
+                        border: "none",
+                        borderRadius: "10px",
+                        padding: "12px",
+                        fontSize: "14px",
+                        outline: "none",
+                      }}
+                      value={formData.discountType}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          discountType: e.target.value as "NONE" | "PERCENT" | "FIXED",
+                          discountValue:
+                            e.target.value === "NONE" ? "" : formData.discountValue,
+                        })
+                      }
+                      disabled={loading}
+                    >
+                      <option value="NONE">No Discount</option>
+                      <option value="PERCENT">Percent (%)</option>
+                      <option value="FIXED">Fixed Amount (IDR)</option>
+                    </select>
 
                     <input
                       style={{
+                        background: "#f2f2f2",
+                        border: "none",
+                        borderRadius: "10px",
+                        padding: "12px",
+                        fontSize: "14px",
+                        outline: "none",
+                      }}
+                      type="number"
+                      min={0}
+                      max={formData.discountType === "PERCENT" ? 100 : undefined}
+                      placeholder={
+                        formData.discountType === "PERCENT"
+                          ? "Discount %"
+                          : formData.discountType === "FIXED"
+                          ? "Discount amount (IDR)"
+                          : "Discount (optional)"
+                      }
+                      value={formData.discountValue}
+                      onChange={(e) =>
+                        setFormData({ ...formData, discountValue: e.target.value })
+                      }
+                      disabled={loading || formData.discountType === "NONE"}
+                    />
+
+                    <input
+                      style={{
+                        gridColumn: "span 2",
                         background: "#f2f2f2",
                         border: "none",
                         borderRadius: "8px",
@@ -1648,11 +1795,11 @@ export default function AdminProductManager({
                       }}
                       placeholder="Image URL *"
                       value={formData.thumbnailUrl}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          thumbnailUrl: e.target.value,
-                        })
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            thumbnailUrl: e.target.value,
+                          })
                       }
                       required
                       disabled={loading}
@@ -1661,6 +1808,7 @@ export default function AdminProductManager({
                     {error && (
                       <div
                         style={{
+                          gridColumn: "span 2",
                           color: "#f44336",
                           fontSize: "13px",
                           padding: "8px",
@@ -1674,6 +1822,7 @@ export default function AdminProductManager({
 
                     <div
                       style={{
+                        gridColumn: "span 2",
                         display: "flex",
                         gap: "10px",
                         justifyContent: "center",

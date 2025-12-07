@@ -1,9 +1,10 @@
-// src/app/api/payments/create/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { prisma } from "@/src/lib/prisma";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import xenditService from "@/src/lib/xendit";
+import { checkCsrf, checkRateLimit } from "@/utils/security";
+import { computeDiscountedPrice } from "@/utils/pricing";
 
 type ProductItem = {
   id: string;
@@ -14,6 +15,12 @@ type ProductItem = {
 
 export async function POST(request: Request) {
   try {
+    const csrf = checkCsrf(request);
+    if (csrf) return csrf;
+
+    const rateLimited = checkRateLimit(request, { windowMs: 60_000, limit: 20, identifier: "payments_create" });
+    if (rateLimited) return rateLimited;
+
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
@@ -60,7 +67,7 @@ export async function POST(request: Request) {
         id: { in: productIds },
         status: "ACTIVE",
       },
-    }) as ProductItem[];
+    }) as (ProductItem & { discountType?: "NONE" | "PERCENT" | "FIXED"; discountValue?: number })[];
 
     if (products.length !== items.length) {
       return NextResponse.json(
@@ -76,10 +83,15 @@ export async function POST(request: Request) {
       if (!product) {
         throw new Error(`Product ${item.productId} not found`);
       }
-      totalAmount += product.price * (item.quantity || 1);
+      const { finalPrice } = computeDiscountedPrice(
+        product.price,
+        (product as any).discountType as any,
+        (product as any).discountValue
+      );
+      totalAmount += finalPrice * (item.quantity || 1);
       return {
         productId: product.id,
-        priceAtPurchase: product.price,
+        priceAtPurchase: finalPrice,
       };
     });
 
@@ -196,13 +208,14 @@ export async function POST(request: Request) {
       };
 
     } else {
-      // Use Invoice for other payment methods
+      // Default to hosted invoice (supports CARD and others in sandbox)
       const invoiceResult = await xenditService.createInvoice({
         externalId: purchase.id,
         amount: totalAmount,
         payerEmail: user.email,
         description: `Purchase ${purchase.id}`,
         items: xenditItems,
+        paymentMethods: paymentType === "CARD" ? ["CARD"] : undefined,
       });
 
       if (!invoiceResult.success || !invoiceResult.data) {
@@ -210,18 +223,21 @@ export async function POST(request: Request) {
       }
 
       paymentData = {
-        type: 'INVOICE',
-        invoiceUrl: invoiceResult.data.invoiceUrl,
-        expiryTime: invoiceResult.data.expiryDate ? new Date(invoiceResult.data.expiryDate) : new Date(Date.now() + 24 * 60 * 60 * 1000),
+        type: paymentType === "CARD" ? "CARD" : "INVOICE",
+        invoiceUrl: invoiceResult.data.invoice_url || invoiceResult.data.invoiceUrl,
+        expiryTime: invoiceResult.data.expiry_date
+          ? new Date(invoiceResult.data.expiry_date)
+          : new Date(Date.now() + 24 * 60 * 60 * 1000),
         xenditId: invoiceResult.data.id,
       };
     }
 
-    // Update purchase with xendit ID
+    // Update purchase with xendit ID and channel metadata
     await prisma.purchase.update({
       where: { id: purchase.id },
       data: {
         transactionId: paymentData.xenditId,
+        paymentMethod: paymentType,
       },
     });
 

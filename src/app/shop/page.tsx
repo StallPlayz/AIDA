@@ -22,6 +22,10 @@ type DBProduct = {
   thumbnailUrl: string;
   category: string;
   status: string;
+  viewCount: number;
+  featured: boolean;
+  discountType?: "NONE" | "PERCENT" | "FIXED";
+  discountValue?: number;
 };
 
 export type Product = {
@@ -33,6 +37,10 @@ export type Product = {
   image: string;
   category: string;
   status: string;
+  viewCount: number;
+  featured: boolean;
+  discountType?: "NONE" | "PERCENT" | "FIXED";
+  discountValue?: number;
 };
 
 type CartItem = {
@@ -108,6 +116,10 @@ export default function Page() {
         image: p.thumbnailUrl,
         category: p.category,
         status: p.status,
+        viewCount: p.viewCount ?? 0,
+        featured: p.featured ?? false,
+        discountType: p.discountType,
+        discountValue: p.discountValue,
       }));
 
       setProducts(transformedProducts);
@@ -211,6 +223,13 @@ export default function Page() {
     setShowAdminPanel(false);
   };
 
+  // Refresh cart when cart modal is opened to reflect latest prices/discounts
+  useEffect(() => {
+    if (cartOpen) {
+      fetchCart();
+    }
+  }, [cartOpen]);
+
   // Transform cart items to match CartModal expected format
   const cartItemsForModal = cartItems.map((item) => ({
     p: {
@@ -222,6 +241,10 @@ export default function Page() {
       image: item.product.thumbnailUrl,
       category: item.product.category,
       status: item.product.status,
+      viewCount: (item.product as any).viewCount ?? 0,
+      featured: (item.product as any).featured ?? false,
+      discountType: (item.product as any).discountType,
+      discountValue: (item.product as any).discountValue,
     },
     qty: 1,
   }));
@@ -276,50 +299,78 @@ export default function Page() {
       </header>
 
       {isAdmin && (
-        <div
-          style={{
-            position: "fixed",
-            top: "100px",
-            left: "30px",
-            zIndex: 100,
-            display: "flex",
-            flexDirection: "column",
-            gap: "10px",
-          }}
-        >
+        <>
           <button
-            onClick={() => setShowAdminPanel(!showAdminPanel)}
+            onClick={() => setShowAdminPanel(true)}
             style={{
-              background: "#246E76",
+              position: "fixed",
+              bottom: "24px",
+              right: "24px",
+              zIndex: 120,
+              background: "#0f6d66",
               color: "white",
               border: "none",
-              padding: "10px 20px",
-              borderRadius: "10px",
+              padding: "12px 18px",
+              borderRadius: "999px",
               cursor: "pointer",
-              fontWeight: "600",
+              fontWeight: 700,
+              boxShadow: "0 12px 28px rgba(0,0,0,0.25)",
+              letterSpacing: "0.3px",
             }}
           >
-            {showAdminPanel ? "Close Admin Panel" : "Admin Panel"}
+            Admin Panel
           </button>
-        </div>
-      )}
 
-      {isAdmin && showAdminPanel && (
-        <div
-          style={{
-            position: "fixed",
-            top: "160px",
-            left: "30px",
-            zIndex: 99,
-            background: "white",
-            padding: "20px",
-            borderRadius: "12px",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
-            width: "fit-content",
-          }}
-        >
-          <AdminProductManager onProductAdded={handleProductAdded} />
-        </div>
+          {showAdminPanel && (
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(0,0,0,0.6)",
+                backdropFilter: "blur(6px)",
+                zIndex: 110,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "24px",
+              }}
+              onClick={() => setShowAdminPanel(false)}
+            >
+              <div
+                style={{
+                  position: "relative",
+                  width: "100%",
+                  maxWidth: "960px",
+                  maxHeight: "90vh",
+                  overflow: "auto",
+                  borderRadius: "16px",
+                  background: "white",
+                  boxShadow: "0 16px 48px rgba(0,0,0,0.35)",
+                  padding: "16px",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  onClick={() => setShowAdminPanel(false)}
+                  style={{
+                    position: "absolute",
+                    top: "12px",
+                    right: "12px",
+                    background: "transparent",
+                    border: "none",
+                    fontSize: "20px",
+                    cursor: "pointer",
+                    color: "#0f6d66",
+                  }}
+                  aria-label="Close admin panel"
+                >
+                  ×
+                </button>
+                <AdminProductManager onProductAdded={handleProductAdded} />
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <section className="products-wrap">

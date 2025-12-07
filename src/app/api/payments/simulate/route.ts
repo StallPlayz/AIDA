@@ -1,9 +1,9 @@
-// src/app/api/payment/simulate/route.ts (updated with email)
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { prisma } from "@/src/lib/prisma";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import { sendPaymentReceipt } from "@/src/lib/emailService";
+import xenditService from "@/src/lib/xendit";
 
 export async function POST(request: Request) {
   try {
@@ -36,6 +36,20 @@ export async function POST(request: Request) {
         { error: "Purchase not found" },
         { status: 404 }
       );
+    }
+
+    // Try to call Xendit sandbox simulate endpoints when we have a transactionId
+    if (purchase.transactionId) {
+      if (purchase.paymentMethod === "BANK_TRANSFER") {
+        await xenditService.simulateVirtualAccount(purchase.transactionId, purchase.totalAmount);
+      } else if (purchase.paymentMethod === "QRIS") {
+        await xenditService.simulateQRIS(purchase.transactionId, purchase.totalAmount);
+      } else if (purchase.paymentMethod === "E_WALLET") {
+        await xenditService.simulateEWallet(purchase.transactionId, status === "success" ? "SUCCEEDED" : "FAILED");
+      } else {
+        // Invoice/card
+        await xenditService.simulateInvoice(purchase.transactionId, status === "success" ? "PAID" : "EXPIRED");
+      }
     }
 
     if (status === 'success') {

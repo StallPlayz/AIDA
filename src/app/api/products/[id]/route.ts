@@ -3,6 +3,29 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { prisma } from "@/src/lib/prisma";
 import { authOptions } from "../../auth/[...nextauth]/route";
+import { createClient } from "@supabase/supabase-js";
+import { checkCsrf, checkRateLimit } from "@/utils/security";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase =
+  supabaseUrl && supabaseServiceKey
+    ? createClient(supabaseUrl, supabaseServiceKey)
+    : null;
+
+const extractProductImagePath = (url: string | null) => {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const idx = segments.findIndex((s) => s === "product-images");
+    if (idx === -1) return null;
+    const pathParts = segments.slice(idx + 1);
+    return pathParts.length ? pathParts.join("/") : null;
+  } catch {
+    return null;
+  }
+};
 
 // GET single product
 export async function GET(
@@ -39,6 +62,12 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const csrf = checkCsrf(request);
+    if (csrf) return csrf;
+
+    const rateLimited = checkRateLimit(request, { windowMs: 60_000, limit: 40, identifier: "products_update" });
+    if (rateLimited) return rateLimited;
+
     const session = await getServerSession(authOptions);
     
     console.log("Update request - Session:", session);
@@ -102,6 +131,14 @@ export async function PUT(
         fileUrl: body.fileUrl || null,
         fileSize: body.fileSize ? parseInt(body.fileSize) : null,
         tags: body.tags || [],
+        featured: !!body.featured,
+        discountType:
+          body.discountType === "PERCENT" || body.discountType === "FIXED"
+            ? body.discountType
+            : "NONE",
+        discountValue: Number.isFinite(Number(body.discountValue))
+          ? Math.max(0, parseInt(body.discountValue))
+          : 0,
       },
     });
 
@@ -123,6 +160,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const csrf = checkCsrf(request);
+    if (csrf) return csrf;
+
+    const rateLimited = checkRateLimit(request, { windowMs: 60_000, limit: 20, identifier: "products_delete" });
+    if (rateLimited) return rateLimited;
+
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
@@ -145,6 +188,17 @@ export async function DELETE(
     }
 
     const { id } = await params;
+
+    const product = await prisma.product.findUnique({
+      where: { id },
+    });
+
+    if (!product) {
+      return NextResponse.json(
+        { error: "Product not found" },
+        { status: 404 }
+      );
+    }
     
     // Check if product has been purchased
     const purchaseCount = await prisma.purchaseItem.count({
@@ -165,6 +219,28 @@ export async function DELETE(
       });
     } else {
       // Product has never been purchased - safe to delete
+      let imageDeleted = false;
+
+      if (!supabase) {
+        console.warn("Supabase client not configured; skipping image delete");
+      }
+
+      if (supabase && product.thumbnailUrl) {
+        const storagePath = extractProductImagePath(product.thumbnailUrl);
+        if (storagePath) {
+          const { error: removeError } = await supabase.storage
+            .from("product-images")
+            .remove([storagePath]);
+          if (removeError) {
+            console.error("Failed to delete product image from storage:", removeError);
+          } else {
+            imageDeleted = true;
+          }
+        } else {
+          console.warn("Could not parse storage path from thumbnailUrl");
+        }
+      }
+
       await prisma.product.delete({
         where: { id },
       });
@@ -172,7 +248,8 @@ export async function DELETE(
       return NextResponse.json({ 
         success: true, 
         message: "Product deleted successfully",
-        archived: false 
+        archived: false,
+        imageDeleted,
       });
     }
   } catch (error) {

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { prisma } from "@/src/lib/prisma";
 import { authOptions } from "../auth/[...nextauth]/route";
+import { checkCsrf, checkRateLimit } from "@/utils/security";
 
 // GET all active products
 export async function GET() {
@@ -11,9 +12,10 @@ export async function GET() {
       where: {
         status: "ACTIVE",
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: [
+        { featured: "desc" },
+        { createdAt: "desc" },
+      ],
     });
 
     return NextResponse.json(products);
@@ -29,6 +31,12 @@ export async function GET() {
 // POST - Create new product (Admin only)
 export async function POST(request: Request) {
   try {
+    const csrf = checkCsrf(request);
+    if (csrf) return csrf;
+
+    const rateLimited = checkRateLimit(request, { windowMs: 60_000, limit: 30, identifier: "products_create" });
+    if (rateLimited) return rateLimited;
+
     const session = await getServerSession(authOptions);
     
     console.log("Session:", session);
@@ -75,6 +83,9 @@ export async function POST(request: Request) {
       fileUrl,
       fileSize,
       tags,
+      featured,
+      discountType,
+      discountValue,
     } = body;
 
     if (!title || !description || !price || !thumbnailUrl) {
@@ -92,6 +103,24 @@ export async function POST(request: Request) {
       );
     }
 
+    const normalizedDiscountType =
+      discountType === "PERCENT" || discountType === "FIXED" ? discountType : "NONE";
+    const parsedDiscountValue = parseInt(discountValue || 0);
+
+    if (normalizedDiscountType === "PERCENT" && (parsedDiscountValue < 0 || parsedDiscountValue > 100)) {
+      return NextResponse.json(
+        { error: "Percentage discount must be between 0 and 100" },
+        { status: 400 }
+      );
+    }
+
+    if (normalizedDiscountType === "FIXED" && parsedDiscountValue < 0) {
+      return NextResponse.json(
+        { error: "Fixed discount must be zero or greater" },
+        { status: 400 }
+      );
+    }
+
     const product = await prisma.product.create({
       data: {
         title,
@@ -105,6 +134,9 @@ export async function POST(request: Request) {
         fileUrl: fileUrl || null,
         fileSize: fileSize ? parseInt(fileSize) : null,
         tags: tags || [],
+        featured: !!featured,
+        discountType: normalizedDiscountType,
+        discountValue: isNaN(parsedDiscountValue) ? 0 : parsedDiscountValue,
       },
     });
 

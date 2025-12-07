@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import { createClient } from "@supabase/supabase-js";
+import sharp from "sharp";
+import { checkCsrf, checkRateLimit } from "@/utils/security";
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,7 +22,12 @@ const supabase = supabaseUrl && supabaseServiceKey
 export async function POST(request: Request) {
   try {
     console.log("Upload route called");
-    
+
+    const csrf = checkCsrf(request);
+    if (csrf) return csrf;
+
+    const rateLimited = checkRateLimit(request, { windowMs: 60_000, limit: 15, identifier: "upload_image" });
+    if (rateLimited) return rateLimited;
     // Check if Supabase is configured
     if (!supabase) {
       return NextResponse.json(
@@ -76,10 +83,10 @@ export async function POST(request: Request) {
     // Create unique filename
     const timestamp = Date.now();
     const randomString = Math.random().toString(36).substring(2, 15);
-    const fileExt = file.name.split('.').pop();
-    const fileName = `product-${timestamp}-${randomString}.${fileExt}`;
+    const fileExt = file.name.includes('.') ? file.name.split('.').pop() : "";
+    const baseName = `product-${timestamp}-${randomString}`;
 
-    console.log("Generated filename:", fileName);
+    console.log("Generated base filename:", baseName);
 
     // Convert File to ArrayBuffer then to Buffer
     const arrayBuffer = await file.arrayBuffer();
@@ -87,12 +94,45 @@ export async function POST(request: Request) {
 
     console.log("Buffer created, size:", buffer.length);
 
+    // Optional server-side fallback conversion to WebP
+    const shouldConvertToWebP =
+      file.type !== "image/webp" &&
+      !file.name.toLowerCase().endsWith(".webp");
+
+    let uploadBuffer = buffer;
+    let uploadContentType = file.type;
+    let uploadFileName = `${baseName}.${fileExt || "bin"}`;
+
+    if (shouldConvertToWebP) {
+      try {
+        uploadBuffer = await sharp(buffer).webp({ quality: 90 }).toBuffer();
+        uploadContentType = "image/webp";
+        uploadFileName = `${baseName}.webp`;
+        console.log(
+          "Converted to WebP, new size:",
+          uploadBuffer.length,
+          "bytes"
+        );
+      } catch (conversionError) {
+        console.error("WebP conversion failed, using original file:", conversionError);
+      }
+    }
+
+    // Enforce size after potential conversion
+    if (uploadBuffer.length > 5 * 1024 * 1024) {
+      console.log("Converted/original file still too large:", uploadBuffer.length);
+      return NextResponse.json(
+        { error: "File size must be less than 5MB after conversion" },
+        { status: 400 }
+      );
+    }
+
     // Upload to Supabase Storage
     console.log("Uploading to Supabase...");
     const { data, error } = await supabase.storage
       .from('product-images')
-      .upload(fileName, buffer, {
-        contentType: file.type,
+      .upload(uploadFileName, uploadBuffer, {
+        contentType: uploadContentType,
         cacheControl: '3600',
         upsert: false
       });
@@ -123,14 +163,14 @@ export async function POST(request: Request) {
     // Get public URL
     const { data: { publicUrl } } = supabase.storage
       .from('product-images')
-      .getPublicUrl(fileName);
+      .getPublicUrl(uploadFileName);
 
     console.log("Public URL:", publicUrl);
 
     return NextResponse.json({
       success: true,
       url: publicUrl,
-      fileName: fileName
+      fileName: uploadFileName
     });
 
   } catch (error) {

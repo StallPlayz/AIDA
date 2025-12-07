@@ -19,6 +19,7 @@ export interface CreateInvoiceParams {
     quantity: number;
     price: number;
   }>;
+  paymentMethods?: string[];
   successRedirectUrl?: string;
   failureRedirectUrl?: string;
 }
@@ -54,6 +55,7 @@ export const xenditService = {
           currency: 'IDR',
           items: params.items,
           should_send_email: false,
+          payment_methods: params.paymentMethods,
         }),
       });
 
@@ -75,6 +77,23 @@ export const xenditService = {
         success: false,
         error: error.message || 'Failed to create invoice',
       };
+    }
+  },
+
+  async simulateInvoice(invoiceId: string, status: 'PAID' | 'EXPIRED' = 'PAID') {
+    try {
+      const response = await fetch(`${XENDIT_API_URL}/v2/invoices/${invoiceId}/simulate`, {
+        method: 'POST',
+        headers: xenditHeaders,
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to simulate invoice');
+      }
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to simulate invoice' };
     }
   },
 
@@ -133,6 +152,23 @@ export const xenditService = {
     }
   },
 
+  async simulateQRIS(qrId: string, amount: number) {
+    try {
+      const response = await fetch(`${XENDIT_API_URL}/qr_codes/${qrId}/payments`, {
+        method: 'POST',
+        headers: xenditHeaders,
+        body: JSON.stringify({ reference_id: `sim-${qrId}`, amount }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to simulate QRIS');
+      }
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to simulate QRIS' };
+    }
+  },
+
   // Create Virtual Account (Bank Transfer)
   async createVirtualAccount(params: CreateVAParams) {
     try {
@@ -173,6 +209,26 @@ export const xenditService = {
         success: false,
         error: error.message || 'Failed to create virtual account',
       };
+    }
+  },
+
+  async simulateVirtualAccount(vaId: string, amount: number) {
+    try {
+      const response = await fetch(`${XENDIT_API_URL}/callback_virtual_accounts/${vaId}/simulate_payment`, {
+        method: 'POST',
+        headers: xenditHeaders,
+        body: JSON.stringify({
+          amount,
+          payment_method: 'BANK_TRANSFER',
+        }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to simulate VA payment');
+      }
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to simulate VA payment' };
     }
   },
 
@@ -260,6 +316,23 @@ export const xenditService = {
         success: false,
         error: error.message || 'Failed to create e-wallet payment',
       };
+    }
+  },
+
+  async simulateEWallet(chargeId: string, status: 'SUCCEEDED' | 'FAILED' = 'SUCCEEDED') {
+    try {
+      const response = await fetch(`${XENDIT_API_URL}/ewallets/charges/${chargeId}/simulate`, {
+        method: 'POST',
+        headers: xenditHeaders,
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to simulate e-wallet charge');
+      }
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to simulate e-wallet charge' };
     }
   },
 

@@ -1,8 +1,8 @@
-// src/app/api/cart/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { prisma } from "@/src/lib/prisma";
 import { authOptions } from "../auth/[...nextauth]/route";
+import { checkCsrf, checkRateLimit } from "@/utils/security";
 
 // GET user's cart
 export async function GET() {
@@ -50,6 +50,11 @@ export async function GET() {
 // POST - Add item to cart
 export async function POST(request: Request) {
   try {
+    const csrf = checkCsrf(request);
+    if (csrf) return csrf;
+    const rateLimited = checkRateLimit(request, { windowMs: 60_000, limit: 60, identifier: "cart_post" });
+    if (rateLimited) return rateLimited;
+
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
@@ -131,8 +136,14 @@ export async function POST(request: Request) {
 }
 
 // DELETE - Clear cart
-export async function DELETE() {
+export async function DELETE(request: Request) {
   try {
+    const csrf = checkCsrf(request);
+    if (csrf) return csrf;
+
+    const rateLimited = checkRateLimit(request, { windowMs: 60_000, limit: 30, identifier: "cart_clear" });
+    if (rateLimited) return rateLimited;
+
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
@@ -167,7 +178,6 @@ export async function DELETE() {
   }
 }
 
-// src/app/api/cart/[id]/route.ts
 // DELETE - Remove specific item from cart
 export async function DELETE_ITEM(
   request: Request,

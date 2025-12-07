@@ -39,7 +39,6 @@ model User {
   lastLogin     DateTime?
 
   accounts      Account[]
-  sessions      Session[]
   purchases     Purchase[]
   ownedProducts UserProduct[]
   cart          CartItem[]
@@ -66,17 +65,6 @@ model Account {
 
   @@unique([provider, providerAccountId])
   @@map("accounts")
-}
-
-model Session {
-  id           String    @id @default(cuid())
-  sessionToken String    @unique
-  userId       String
-  expires      DateTime
-
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
 }
 
 model VerificationToken {
@@ -107,6 +95,12 @@ enum ProductStatus {
   ARCHIVED
 }
 
+enum DiscountType {
+  NONE
+  PERCENT
+  FIXED
+}
+
 model Product {
   id            String           @id @default(cuid())
   title         String
@@ -127,6 +121,8 @@ model Product {
   tags          String[]
   featured      Boolean          @default(false)
   viewCount     Int              @default(0)
+  discountType  DiscountType     @default(NONE)
+  discountValue Int              @default(0)
 
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt

@@ -1,4 +1,3 @@
-// src/app/api/auth/check-role/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/src/lib/prisma";

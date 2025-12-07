@@ -10,6 +10,7 @@ import {
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
+import { computeDiscountedPrice } from "@/utils/pricing";
 
 type PaymentMethod = "E_WALLET" | "BANK_TRANSFER" | "QRIS" | "CREDIT_CARD";
 type PaymentProvider =
@@ -31,6 +32,10 @@ interface Product {
   image: string;
   category: string;
   status: string;
+  viewCount?: number;
+  featured?: boolean;
+  discountType?: "NONE" | "PERCENT" | "FIXED";
+  discountValue?: number;
 }
 
 interface CartModalProps {
@@ -69,8 +74,17 @@ export default function ImprovedCartModal({
   const [timeRemaining, setTimeRemaining] = useState(900);
   const [autoCheckInterval, setAutoCheckInterval] =
     useState<NodeJS.Timeout | null>(null);
+  const [discountNotice, setDiscountNotice] = useState("");
+  const [hadDiscount, setHadDiscount] = useState(false);
 
-  const total = items.reduce((s, it) => s + it.qty * it.p.price, 0);
+  const total = items.reduce((s, it) => {
+    const discounted = computeDiscountedPrice(
+      it.p.price,
+      it.p.discountType,
+      it.p.discountValue
+    ).finalPrice;
+    return s + it.qty * discounted;
+  }, 0);
 
   // Timer for payment expiration
   useEffect(() => {
@@ -90,6 +104,24 @@ export default function ImprovedCartModal({
       return () => clearInterval(timer);
     }
   }, [step, timeRemaining]);
+
+  // Discount notice handling
+  useEffect(() => {
+    const hasDiscountNow = items.some(
+      (it) =>
+        it.p.discountType && it.p.discountType !== "NONE" && it.p.discountValue
+    );
+    if (hadDiscount && !hasDiscountNow) {
+      setDiscountNotice(
+        "Some item prices may have reverted to normal because a discount period ended."
+      );
+    } else if (hasDiscountNow) {
+      setDiscountNotice(
+        "Discounts applied. Prices may change when discounts end."
+      );
+    }
+    setHadDiscount(hasDiscountNow);
+  }, [items, hadDiscount]);
 
   // Auto-check payment status every 3 seconds
   useEffect(() => {
@@ -291,6 +323,11 @@ export default function ImprovedCartModal({
             <X size={24} />
           </button>
         </div>
+        {step === "cart" && discountNotice && (
+          <div className="cart-banner">
+            {discountNotice}
+          </div>
+        )}
 
         {/* Cart Step */}
         {step === "cart" && (
@@ -302,9 +339,37 @@ export default function ImprovedCartModal({
                   <img src={p.image} alt={p.title} className="cart-item-img" />
                   <div className="cart-item-info">
                     <h4>{p.title}</h4>
-                    <p className="cart-item-price">
-                      IDR {p.price.toLocaleString()}
-                    </p>
+                    <div className="cart-item-price-block">
+                      {(() => {
+                        const { finalPrice, discountPercent } =
+                          computeDiscountedPrice(
+                            p.price,
+                            p.discountType,
+                            p.discountValue
+                          );
+                        const hasDiscount =
+                          p.discountType !== "NONE" &&
+                          p.discountType &&
+                          finalPrice < p.price;
+                        return (
+                          <>
+                            {hasDiscount && (
+                              <span className="price-old">
+                                IDR {p.price.toLocaleString()}
+                              </span>
+                            )}
+                            <span className="cart-item-price">
+                              IDR {finalPrice.toLocaleString()}
+                            </span>
+                            {hasDiscount && (
+                              <span className="price-discount-tag">
+                                -{discountPercent}%
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
                     <p className="cart-item-qty">Quantity: {qty}</p>
                   </div>
                   <button

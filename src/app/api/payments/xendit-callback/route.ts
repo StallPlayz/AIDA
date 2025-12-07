@@ -1,4 +1,3 @@
-// src/app/api/payments/xendit-callback/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
 import { sendPaymentReceipt } from "@/src/lib/emailService";
@@ -6,15 +5,14 @@ import { sendPaymentReceipt } from "@/src/lib/emailService";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    
-    console.log('Xendit callback received:', body);
 
-    // Verify callback token (optional but recommended)
-    const callbackToken = request.headers.get('x-callback-token');
+    console.log("Xendit callback received:", body);
+
+    // Verify callback token
+    const callbackToken = request.headers.get("x-callback-token");
     if (callbackToken !== process.env.XENDIT_CALLBACK_TOKEN) {
-      console.warn('Invalid callback token');
-      // In production, you should reject invalid tokens
-      // return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+      console.warn("Invalid callback token");
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
 
     let purchaseId: string | null = null;
@@ -28,7 +26,7 @@ export async function POST(request: Request) {
     } else if (body.callback_virtual_account_id) {
       // Virtual Account callback
       purchaseId = body.external_id;
-      status = body.payment_id ? 'PAID' : 'PENDING';
+      status = body.payment_id ? "PAID" : "PENDING";
     } else if (body.data && body.data.reference_id) {
       // E-wallet callback
       purchaseId = body.data.reference_id;
@@ -36,8 +34,11 @@ export async function POST(request: Request) {
     }
 
     if (!purchaseId) {
-      console.error('Could not extract purchase ID from callback');
-      return NextResponse.json({ error: 'Invalid callback data' }, { status: 400 });
+      console.error("Could not extract purchase ID from callback");
+      return NextResponse.json(
+        { error: "Invalid callback data" },
+        { status: 400 }
+      );
     }
 
     // Find the purchase
@@ -54,23 +55,26 @@ export async function POST(request: Request) {
     });
 
     if (!purchase) {
-      console.error('Purchase not found:', purchaseId);
-      return NextResponse.json({ error: 'Purchase not found' }, { status: 404 });
+      console.error("Purchase not found:", purchaseId);
+      return NextResponse.json(
+        { error: "Purchase not found" },
+        { status: 404 }
+      );
     }
 
     // Update purchase based on status
-    if (status === 'PAID' || status === 'SETTLED' || status === 'SUCCEEDED') {
+    if (status === "PAID" || status === "SETTLED" || status === "SUCCEEDED") {
       // Payment successful
       const updatedPurchase = await prisma.purchase.update({
         where: { id: purchaseId },
         data: {
-          paymentStatus: 'COMPLETED',
+          paymentStatus: "COMPLETED",
           completedAt: new Date(),
         },
       });
 
       // Create user products
-      const userProductsData = purchase.items.map(item => ({
+      const userProductsData = purchase.items.map((item) => ({
         userId: purchase.userId,
         productId: item.productId,
         purchasedAt: new Date(),
@@ -85,7 +89,7 @@ export async function POST(request: Request) {
       await prisma.activityLog.create({
         data: {
           userId: purchase.userId,
-          action: 'PAYMENT_SUCCESS',
+          action: "PAYMENT_SUCCESS",
           details: {
             purchaseId,
             transactionId: purchase.transactionId,
@@ -99,38 +103,37 @@ export async function POST(request: Request) {
       if (purchase.user.email) {
         await sendPaymentReceipt({
           to: purchase.user.email,
-          userName: purchase.user.name || 'Customer',
+          userName: purchase.user.name || "Customer",
           purchaseId,
-          transactionId: purchase.transactionId || 'N/A',
-          items: purchase.items.map(item => ({
+          transactionId: purchase.transactionId || "N/A",
+          items: purchase.items.map((item) => ({
             title: item.product.title,
             price: item.priceAtPurchase,
             quantity: 1,
           })),
           totalAmount: purchase.totalAmount,
-          paymentMethod: purchase.paymentMethod || 'E_WALLET',
+          paymentMethod: purchase.paymentMethod || "E_WALLET",
           completedAt: updatedPurchase.completedAt!,
         });
       }
 
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Payment completed successfully' 
+      return NextResponse.json({
+        success: true,
+        message: "Payment completed successfully",
       });
-
-    } else if (status === 'FAILED' || status === 'EXPIRED') {
+    } else if (status === "FAILED" || status === "EXPIRED") {
       // Payment failed
       await prisma.purchase.update({
         where: { id: purchaseId },
         data: {
-          paymentStatus: 'FAILED',
+          paymentStatus: "FAILED",
         },
       });
 
       await prisma.activityLog.create({
         data: {
           userId: purchase.userId,
-          action: 'PAYMENT_FAILED',
+          action: "PAYMENT_FAILED",
           details: {
             purchaseId,
             totalAmount: purchase.totalAmount,
@@ -139,19 +142,18 @@ export async function POST(request: Request) {
         },
       });
 
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Payment failed' 
+      return NextResponse.json({
+        success: true,
+        message: "Payment failed",
       });
     }
 
-    // For other statuses, just acknowledge
+    // For other statuses
     return NextResponse.json({ success: true });
-
   } catch (error) {
-    console.error('Xendit callback error:', error);
+    console.error("Xendit callback error:", error);
     return NextResponse.json(
-      { error: 'Callback processing failed' },
+      { error: "Callback processing failed" },
       { status: 500 }
     );
   }

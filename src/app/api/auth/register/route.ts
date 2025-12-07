@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
 import bcrypt from "bcryptjs";
+import { checkRateLimit, checkCsrf } from "@/utils/security";
 
 export async function POST(request: Request) {
   try {
+    const csrf = checkCsrf(request);
+    if (csrf) return csrf;
+
+    const rateLimited = checkRateLimit(request, { windowMs: 60_000, limit: 10, identifier: "register" });
+    if (rateLimited) return rateLimited;
+
     const body = await request.json();
     const { email, password, username, name } = body;
 
@@ -15,9 +22,18 @@ export async function POST(request: Request) {
       );
     }
 
-    if (password.length < 8) {
+    const strongEnough =
+      typeof password === "string" &&
+      password.length >= 10 &&
+      /[A-Za-z]/.test(password) &&
+      /[0-9]/.test(password);
+
+    if (!strongEnough) {
       return NextResponse.json(
-        { error: "Password must be at least 8 characters long" },
+        {
+          error:
+            "Password must be at least 10 characters long and include letters and numbers",
+        },
         { status: 400 }
       );
     }
