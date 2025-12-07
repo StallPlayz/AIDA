@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
 import bcrypt from "bcryptjs";
 import { checkRateLimit, checkCsrf } from "@/utils/security";
+import { createAndSendVerificationToken } from "@/src/lib/verificationService";
 
 export async function POST(request: Request) {
   try {
@@ -86,10 +87,15 @@ export async function POST(request: Request) {
       },
     });
 
+    // Create verification token (5 minutes) and send email
+    const { emailSent } = await createAndSendVerificationToken(email, name || username || "User");
+
     return NextResponse.json(
       {
-        message: "User created successfully",
+        message: "User created successfully. Please verify your email.",
         user,
+        requiresVerification: true,
+        emailSent,
       },
       { status: 201 }
     );

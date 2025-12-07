@@ -27,6 +27,13 @@ interface SendPaymentReceiptParams {
   completedAt: Date;
 }
 
+interface SendVerificationEmailParams {
+  to: string;
+  name: string;
+  token: string;
+  expires: Date;
+}
+
 export async function sendPaymentReceipt({
   to,
   userName,
@@ -75,9 +82,13 @@ export async function sendPaymentReceipt({
           <!-- Success Icon -->
           <tr>
             <td align="center" style="padding: 30px 40px 20px;">
-              <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">
-                <span style="font-size: 48px; color: #ffffff;">✓</span>
-              </div>
+              <table align="center" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                <tr>
+                  <td style="width: 80px; height: 80px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 50%; text-align: center; vertical-align: middle;">
+                    <span style="display: inline-block; font-size: 48px; color: #ffffff; line-height: 80px;">✓</span>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
 
@@ -194,4 +205,26 @@ export async function sendPaymentReceipt({
     console.error('Error sending email:', error);
     return { success: false, error };
   }
+}
+
+export async function sendVerificationEmail({ to, name, token, expires }: SendVerificationEmailParams) {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #0f2024; color: #e5e7eb; border-radius: 12px;">
+      <h2 style="margin-top: 0; color: #2eb9b9;">Verify your email</h2>
+      <p>Hi ${name},</p>
+      <p>Use the code below to verify your account. It expires at ${expires.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.</p>
+      <div style="margin: 18px 0; padding: 14px 16px; background: #123036; color: #fff; font-size: 20px; letter-spacing: 3px; text-align: center; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12);">
+        ${token}
+      </div>
+      <p style="color: #9ca3af;">If you did not request this, you can ignore this email.</p>
+      <p style="color: #9ca3af;">— AIDA Creative</p>
+    </div>
+  `;
+
+  await transporter.sendMail({
+    from: `"AIDA Creative" <${process.env.SMTP_USER}>`,
+    to,
+    subject: "Verify your email",
+    html,
+  });
 }

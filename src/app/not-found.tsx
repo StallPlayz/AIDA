@@ -69,10 +69,13 @@ const ErrorPage = () => {
 
         .error-container {
           min-height: 100vh;
-          background: linear-gradient(135deg, #0d9488 0%, #14b8a6 50%, #06b6d4 100%);
+          background: radial-gradient(circle at 20% 20%, rgba(46, 185, 185, 0.15), transparent 35%),
+                      radial-gradient(circle at 80% 10%, rgba(46, 185, 185, 0.12), transparent 30%),
+                      linear-gradient(135deg, #0b1c1f 0%, #0f3035 45%, #125a64 100%);
           position: relative;
           overflow: hidden;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+          color: #e5e7eb;
         }
 
         /* Animated Background Pattern */
@@ -140,27 +143,30 @@ const ErrorPage = () => {
         .nav-menu {
           display: flex;
           align-items: center;
-          gap: 24px;
-          background-color: rgba(255, 255, 255,  0.454);
-          backdrop-filter: blur(10px);
+          gap: 18px;
+          background-color: rgba(12, 30, 36, 0.7);
+          backdrop-filter: blur(12px);
           border-radius: 9999px;
-          padding: 12px 24px;
-          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+          padding: 12px 22px;
+          box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+          border: 1px solid rgba(46, 185, 185, 0.25);
         }
 
         .nav-link {
-          color: #374151;
+          color: #e5e7eb;
           font-weight: 600;
           text-decoration: none;
-          transition: color 0.3s;
+          transition: color 0.25s ease, opacity 0.25s ease;
+          opacity: 0.9;
         }
 
         .nav-link:hover {
-          color: #0d9488;
+          color: #70e0e2;
+          opacity: 1;
         }
 
         .nav-link-active {
-          color: #0d9488;
+          color: #2eb9b9;
         }
 
         /* Main Content */
@@ -220,15 +226,15 @@ const ErrorPage = () => {
         .error-title {
           font-size: 3rem;
           font-weight: bold;
-          color: white;
+          color: #e5e7eb;
           margin-bottom: 16px;
         }
 
         .error-description {
-          font-size: 1.25rem;
-          color: rgba(255, 255, 255, 0.9);
+          font-size: 1.1rem;
+          color: rgba(229, 231, 235, 0.85);
           margin-bottom: 32px;
-          max-width: 448px;
+          max-width: 480px;
         }
 
         /* Action Buttons */
@@ -254,23 +260,24 @@ const ErrorPage = () => {
         }
 
         .btn-primary {
-          background-color: white;
-          color: #0d9488;
+          background: linear-gradient(135deg, #1a5c64, #2eb9b9);
+          color: #ffffff;
+          border: 1px solid rgba(46, 185, 185, 0.6);
         }
 
         .btn-primary:hover {
-          background-color: #f9fafb;
+          background: linear-gradient(135deg, #2eb9b9, #46d5d5);
         }
 
         .btn-secondary {
-          background-color: rgba(13, 148, 136, 0.5);
-          backdrop-filter: blur(10px);
-          color: white;
-          border: 2px solid rgba(255, 255, 255, 0.5);
+          background-color: rgba(255, 255, 255, 0.08);
+          backdrop-filter: blur(12px);
+          color: #ffffff;
+          border: 1px solid rgba(46, 185, 185, 0.4);
         }
 
         .btn-secondary:hover {
-          background-color: rgba(13, 148, 136, 0.7);
+          background-color: rgba(255, 255, 255, 0.16);
         }
 
         /* Decorative Elements */

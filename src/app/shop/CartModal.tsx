@@ -76,6 +76,33 @@ export default function ImprovedCartModal({
     useState<NodeJS.Timeout | null>(null);
   const [discountNotice, setDiscountNotice] = useState("");
   const [hadDiscount, setHadDiscount] = useState(false);
+  const [lastSummary, setLastSummary] = useState<{ amount: number; items: number }>({ amount: 0, items: 0 });
+  const LAST_USERNAME_KEY = "aida_cart_username";
+  const LAST_WHATSAPP_KEY = "aida_cart_whatsapp";
+
+  // Prefill username/whatsapp from localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const savedUser = window.localStorage.getItem(LAST_USERNAME_KEY);
+      const savedWa = window.localStorage.getItem(LAST_WHATSAPP_KEY);
+      if (savedUser) setUsername(savedUser);
+      if (savedWa) setWhatsapp(savedWa);
+    } catch (err) {
+      console.warn("Failed to read saved contact info", err);
+    }
+  }, []);
+
+  // Persist username/whatsapp
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (username) window.localStorage.setItem(LAST_USERNAME_KEY, username);
+      if (whatsapp) window.localStorage.setItem(LAST_WHATSAPP_KEY, whatsapp);
+    } catch (err) {
+      console.warn("Failed to save contact info", err);
+    }
+  }, [username, whatsapp]);
 
   const total = items.reduce((s, it) => {
     const discounted = computeDiscountedPrice(
@@ -185,10 +212,24 @@ export default function ImprovedCartModal({
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleClose = () => {
+  const handleClose = async () => {
     if (autoCheckInterval) {
       clearInterval(autoCheckInterval);
     }
+
+    // If user closes while a payment is in progress, mark it as canceled
+    if (purchaseId && (step === "awaiting" || step === "payment")) {
+      try {
+        await fetch("/api/payments/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ purchaseId }),
+        });
+      } catch (err) {
+        console.error("Failed to cancel payment on close", err);
+      }
+    }
+
     setClosing(true);
     setTimeout(() => onClose(), 300);
   };
@@ -241,6 +282,7 @@ export default function ImprovedCartModal({
         );
       }
 
+      setLastSummary({ amount: total, items: items.length });
       setPurchaseId(data.purchase.id);
       setPaymentData(data.paymentData);
       setStep("awaiting");
@@ -548,7 +590,7 @@ export default function ImprovedCartModal({
         {/* Awaiting Payment Completion */}
         {step === "awaiting" && (
           <div className="processing-content">
-            {paymentData && paymentData.type === "QRIS" && (
+            {paymentData && paymentData.type === "QRIS" && false && (
               <>
                 {/* Timer warning at top for QRIS */}
                 <div
@@ -676,11 +718,34 @@ export default function ImprovedCartModal({
                       </ol>
                     </div>
                   )}
+
+                  {paymentData.invoiceUrl && (
+                    <a
+                      href={paymentData.invoiceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        padding: "14px",
+                        background: "#246E76",
+                        color: "white",
+                        textAlign: "center",
+                        borderRadius: "10px",
+                        textDecoration: "none",
+                        fontWeight: "600",
+                        fontSize: "16px",
+                        marginTop: "20px",
+                      }}
+                    >
+                      Open Payment Page
+                    </a>
+                  )}
                 </div>
               </>
             )}
 
-            {paymentData && paymentData.type === "E_WALLET" && (
+            {paymentData && paymentData.type === "E_WALLET" && false && (
               <div
                 style={{
                   background: "white",
@@ -815,6 +880,30 @@ export default function ImprovedCartModal({
                   </div>
                 )}
 
+                {paymentData.invoiceUrl && (
+                  <a
+                    href={paymentData.invoiceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      padding: "14px",
+                      background: "white",
+                      color: "#246E76",
+                      textAlign: "center",
+                      border: "2px solid #246E76",
+                      borderRadius: "10px",
+                      textDecoration: "none",
+                      fontWeight: "600",
+                      fontSize: "16px",
+                      marginBottom: "16px",
+                    }}
+                  >
+                                      Open Payment Page ?
+                  </a>
+                )}
+
                 {/* Auto-check indicator */}
                 <div
                   style={{
@@ -850,7 +939,9 @@ export default function ImprovedCartModal({
 
             {paymentData &&
               (paymentData.type === "CREDIT_CARD" ||
-                paymentData.type === "INVOICE") && (
+                paymentData.type === "INVOICE" ||
+                paymentData.type === "E_WALLET" ||
+                paymentData.type === "QRIS") && (
                 <div
                   style={{
                     background: "white",
@@ -939,7 +1030,7 @@ export default function ImprovedCartModal({
                     >
                       IDR{" "}
                       {paymentData.amount?.toLocaleString() ||
-                        total.toLocaleString()}
+                        lastSummary.amount.toLocaleString()}
                     </p>
                   </div>
 
@@ -963,7 +1054,7 @@ export default function ImprovedCartModal({
                         marginBottom: "16px",
                       }}
                     >
-                      Open Payment Page →
+                                        Open Payment Page ?
                     </a>
                   ) : (
                     <div
@@ -1157,6 +1248,32 @@ export default function ImprovedCartModal({
                     {paymentData.accountName}
                   </p>
                 </div>
+
+                {/* Hosted invoice option */}
+                {paymentData.invoiceUrl && (
+                  <a
+                    href={paymentData.invoiceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      padding: "14px",
+                      background: "#246E76",
+                      color: "white",
+                      textAlign: "center",
+                      border: "2px solid #246E76",
+                      borderRadius: "10px",
+                      textDecoration: "none",
+                      fontWeight: "600",
+                      fontSize: "16px",
+                      marginTop: "12px",
+                      marginBottom: "16px",
+                    }}
+                  >
+                                      Open Payment Page ?
+                  </a>
+                )}
 
                 {/* Auto-check indicator */}
                 <div
@@ -1367,7 +1484,7 @@ export default function ImprovedCartModal({
               >
                 <span>Amount:</span>
                 <span style={{ fontWeight: "600" }}>
-                  IDR {total.toLocaleString()}
+                  IDR {lastSummary.amount.toLocaleString()}
                 </span>
               </div>
               <div
@@ -1382,7 +1499,7 @@ export default function ImprovedCartModal({
               >
                 <span>Items:</span>
                 <span style={{ fontWeight: "600" }}>
-                  {items.length} product(s)
+                  {lastSummary.items} product(s)
                 </span>
               </div>
             </div>

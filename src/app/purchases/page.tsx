@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Navbar from '../shop/Navbar';
 import AuthButton from '../components/AuthButton';
 import './purchase.css';
+import '../shop/shop.css';
 
 type Purchase = {
   id: string;
@@ -99,7 +100,7 @@ export default function MyPurchasesPage() {
   }
 
   return (
-    <main style={{ minHeight: '100vh', background: '#0f0f10' }}>
+    <main className="library-page">
       <header className="hero" style={{ paddingBottom: '40px' }}>
         <nav className="topbar">
           <div className="nav-items">

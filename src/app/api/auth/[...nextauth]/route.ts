@@ -3,6 +3,9 @@ import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/src/lib/prisma";
 import { compare } from "bcrypt";
+const differenceInHours = (dateLeft: Date, dateRight: Date) =>
+  Math.floor((dateLeft.getTime() - dateRight.getTime()) / 36e5);
+import { createAndSendVerificationToken, verifyToken } from "@/src/lib/verificationService";
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -33,6 +36,20 @@ export const authOptions: AuthOptions = {
 
         if (!passwordMatch) {
           throw new Error("Invalid email or password");
+        }
+
+        // Require verification if not verified or last login over 24h ago
+        const needsFreshVerification =
+          !user.emailVerified ||
+          (user.lastLogin && differenceInHours(new Date(), user.lastLogin) >= 24);
+
+        if (needsFreshVerification) {
+          try {
+            await createAndSendVerificationToken(user.email, user.name || user.username || "User");
+          } catch (err) {
+            console.error("Failed to send verification token during login:", err);
+          }
+          throw new Error("VERIFICATION_REQUIRED");
         }
 
         await prisma.user.update({

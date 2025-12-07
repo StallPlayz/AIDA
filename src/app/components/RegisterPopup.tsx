@@ -1,7 +1,5 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
 import './popup.css';
 
 interface RegisterPopupProps {
@@ -10,7 +8,6 @@ interface RegisterPopupProps {
 }
 
 export default function RegisterPopup({ onBack, onClose }: RegisterPopupProps) {
-  const router = useRouter();
   const [formData, setFormData] = useState({ 
     username: '', 
     email: '', 
@@ -18,16 +15,29 @@ export default function RegisterPopup({ onBack, onClose }: RegisterPopupProps) {
     name: '' 
   });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [closing, setClosing] = useState(false);
+
+  const isValidEmail = (email: string) => {
+    // Basic but stricter email pattern: no spaces, must have domain and TLD 2+ chars
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
 
     if (!formData.username || !formData.email || !formData.password) {
       setError('Please fill in all required fields.');
+      setLoading(false);
+      return;
+    }
+
+    if (!isValidEmail(formData.email)) {
+      setError('Please enter a valid email address.');
       setLoading(false);
       return;
     }
@@ -39,7 +49,6 @@ export default function RegisterPopup({ onBack, onClose }: RegisterPopupProps) {
     }
 
     try {
-      // Register user
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
@@ -56,22 +65,12 @@ export default function RegisterPopup({ onBack, onClose }: RegisterPopupProps) {
         return;
       }
 
-      // Auto login after successful registration
-      const result = await signIn('credentials', {
-        email: formData.email,
-        password: formData.password,
-        redirect: false,
-      });
+      const emailNote = data.emailSent === false
+        ? ' (Verification email could not be sent; please request a new token from the login screen.)'
+        : ' Check your email for the 6-digit verification code.';
 
-      if (result?.error) {
-        setError('Registration successful but login failed. Please login manually.');
-        setLoading(false);
-        return;
-      }
-
-      // Success
-      router.refresh();
-      handleClose();
+      setSuccess(`Registration successful.${emailNote}`);
+      setLoading(false);
     } catch (error) {
       console.error('Registration error:', error);
       setError('An error occurred during registration');
@@ -147,6 +146,7 @@ export default function RegisterPopup({ onBack, onClose }: RegisterPopupProps) {
               disabled={loading}
             />
             {error && <p className="popupError">{error}</p>}
+            {success && <p className="popupError" style={{ color: '#22c55e' }}>{success}</p>}
             <button 
               type="submit" 
               className="popupBtnMain"

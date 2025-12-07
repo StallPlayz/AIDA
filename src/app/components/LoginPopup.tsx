@@ -14,19 +14,33 @@ export default function LoginPopup({ onClose }: LoginPopupProps) {
   const { update } = useSession();
   const [showRegister, setShowRegister] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
+  const [showVerify, setShowVerify] = useState(false);
+  const [verifyToken, setVerifyToken] = useState('');
+  const [info, setInfo] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [closing, setClosing] = useState(false);
 
+  const isValidEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    setInfo('');
     setLoading(true);
 
     if (!formData.email || !formData.password) {
       setError('Please fill in all fields.');
+      setLoading(false);
+      return;
+    }
+
+    if (!isValidEmail(formData.email)) {
+      setError('Please enter a valid email address.');
       setLoading(false);
       return;
     }
@@ -45,7 +59,13 @@ export default function LoginPopup({ onClose }: LoginPopupProps) {
       });
 
       if (result?.error) {
-        setError('Invalid email or password');
+        if (result.error === 'VERIFICATION_REQUIRED' || result.error?.includes('VERIFICATION_REQUIRED')) {
+          setShowVerify(true);
+          setInfo('Verification required. Check your email for a 6-digit code.');
+          setLoading(false);
+          return;
+        }
+        setError(result.error || 'Invalid email or password');
         setLoading(false);
         return;
       }
@@ -97,6 +117,34 @@ export default function LoginPopup({ onClose }: LoginPopupProps) {
   if (showRegister)
     return <RegisterPopup onBack={() => setShowRegister(false)} onClose={onClose} />;
 
+  const handleVerification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setInfo('');
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email, token: verifyToken }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Invalid token');
+        setLoading(false);
+        return;
+      }
+      setSuccess('Sign up successful, please login.');
+      setShowVerify(false);
+      setVerifyToken('');
+      setLoading(false);
+    } catch (err) {
+      setError('Failed to verify token');
+      setLoading(false);
+    }
+  };
+
   return (
     <div className={`popupOverlay ${closing ? 'closing' : ''}`}>
       <div className="popupCard">
@@ -115,49 +163,107 @@ export default function LoginPopup({ onClose }: LoginPopupProps) {
 
           <h2 className="popupTitle">Login</h2>
 
-          <form onSubmit={handleLogin} className="popupForm">
-            <input
-              type="email"
-              placeholder="Email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="popupInput"
-              disabled={loading}
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              className="popupInput"
-              disabled={loading}
-            />
-            {error && <p className="popupError" style={{ color: '#d32f2f' }}>{error}</p>}
-            {success && <p className="popupError" style={{ color: '#4caf50' }}>{success}</p>}
-            <button 
-              type="submit" 
-              className="popupBtnMain"
-              disabled={loading}
-            >
-              {loading ? 'Logging in...' : 'Login'}
-            </button>
-
-            <div className="popupDivider"></div>
-
-            <button
-              type="button"
-              className="popupBtnGoogle"
-              onClick={handleGoogleSignIn}
-              disabled={loading}
-            >
-              <img 
-                src="https://www.svgrepo.com/show/475656/google-color.svg" 
-                alt="Google" 
-                width={'18px'}
+          {!showVerify ? (
+            <form onSubmit={handleLogin} className="popupForm">
+              <input
+                type="email"
+                placeholder="Email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="popupInput"
+                disabled={loading}
               />
-              Sign in with Google
-            </button>
-          </form>
+              <input
+                type="password"
+                placeholder="Password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="popupInput"
+                disabled={loading}
+              />
+              {error && <p className="popupError" style={{ color: '#d32f2f' }}>{error}</p>}
+              {info && <p className="popupError" style={{ color: '#0ea5e9' }}>{info}</p>}
+              {success && <p className="popupError" style={{ color: '#4caf50' }}>{success}</p>}
+              <button 
+                type="submit" 
+                className="popupBtnMain"
+                disabled={loading}
+              >
+                {loading ? 'Logging in...' : 'Login'}
+              </button>
+
+              <div className="popupDivider"></div>
+
+              <button
+                type="button"
+                className="popupBtnGoogle"
+                onClick={handleGoogleSignIn}
+                disabled={loading}
+              >
+                <img 
+                  src="https://www.svgrepo.com/show/475656/google-color.svg" 
+                  alt="Google" 
+                  width={'18px'}
+                />
+                Sign in with Google
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerification} className="popupForm">
+              <input
+                type="email"
+                placeholder="Email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="popupInput"
+                disabled={loading}
+              />
+              <input
+                type="text"
+                placeholder="Enter 6-digit token"
+                value={verifyToken}
+                onChange={(e) => setVerifyToken(e.target.value)}
+                className="popupInput"
+                disabled={loading}
+              />
+              {error && <p className="popupError" style={{ color: '#d32f2f' }}>{error}</p>}
+              {info && <p className="popupError" style={{ color: '#0ea5e9' }}>{info}</p>}
+              {success && <p className="popupError" style={{ color: '#4caf50' }}>{success}</p>}
+              <button 
+                type="submit" 
+                className="popupBtnMain"
+                disabled={loading}
+              >
+                {loading ? 'Verifying...' : 'Verify & Continue'}
+              </button>
+              <div className="popupDivider"></div>
+              <button
+                type="button"
+                className="popupBtnGoogle"
+                onClick={async () => {
+                  setError('');
+                  setInfo('');
+                  setSuccess('');
+                  setLoading(true);
+                  try {
+                    await fetch('/api/auth/send-token', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email: formData.email }),
+                    });
+                    setInfo('A new token has been sent.');
+                  } catch (err) {
+                    setError('Failed to resend token');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading}
+              >
+                Resend Token
+              </button>
+            </form>
+          )}
 
           <p 
             className="popupSwitchText" 

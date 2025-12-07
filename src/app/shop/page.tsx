@@ -60,9 +60,15 @@ export default function Page() {
   const [error, setError] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [adminPanelVisible, setAdminPanelVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [toast, setToast] = useState<{ message: string; type: "info" | "success" | "error" } | null>(null);
+  const toastTimer = useRef<NodeJS.Timeout | null>(null);
   const { t } = useLanguage();
+  // Align cart and user buttons visually; user button sits at right:30, so offset cart by ~70px
+  const cartButtonRight = session?.user ? 100 : 140;
+  const adminAnimTimeout = useRef<NodeJS.Timeout | null>(null);
 
   // Check if user is admin
   useEffect(() => {
@@ -87,6 +93,19 @@ export default function Page() {
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  // Handle admin panel mount for exit animation
+  useEffect(() => {
+    if (showAdminPanel) {
+      setAdminPanelVisible(true);
+      if (adminAnimTimeout.current) clearTimeout(adminAnimTimeout.current);
+    } else if (adminPanelVisible) {
+      adminAnimTimeout.current = setTimeout(() => setAdminPanelVisible(false), 260);
+    }
+    return () => {
+      if (adminAnimTimeout.current) clearTimeout(adminAnimTimeout.current);
+    };
+  }, [showAdminPanel, adminPanelVisible]);
 
   // Fetch cart when user logs in
   useEffect(() => {
@@ -131,6 +150,14 @@ export default function Page() {
     }
   };
 
+  const showToast = (message: string, type: "info" | "success" | "error" = "info") => {
+    if (toastTimer.current) {
+      clearTimeout(toastTimer.current);
+    }
+    setToast({ message, type });
+    toastTimer.current = setTimeout(() => setToast(null), 3200);
+  };
+
   const fetchCart = async () => {
     try {
       const response = await fetch("/api/cart");
@@ -149,7 +176,7 @@ export default function Page() {
     console.log("Current cartOpen state:", cartOpen);
     
     if (!session?.user) {
-      alert("Please login to view your cart");
+      showToast("Please login to view your cart", "info");
       return;
     }
     
@@ -159,7 +186,7 @@ export default function Page() {
 
   const addToCart = async (productId: string) => {
     if (!session?.user) {
-      alert("Please login to add items to cart");
+      showToast("Please login to add items to cart", "info");
       return;
     }
 
@@ -172,18 +199,18 @@ export default function Page() {
 
       if (response.ok) {
         await fetchCart();
-        alert("Product added to cart!");
+        showToast("Product added to cart!", "success");
       } else {
         const data = await response.json();
         if (data.message === "Item already in cart") {
-          alert("Item is already in your cart");
+          showToast("Item is already in your cart", "info");
         } else {
           throw new Error(data.error || "Failed to add to cart");
         }
       }
     } catch (err: any) {
       console.error("Error adding to cart:", err);
-      alert(err.message || "Failed to add to cart");
+      showToast(err.message || "Failed to add to cart", "error");
     }
   };
 
@@ -266,27 +293,30 @@ export default function Page() {
           {/* FIXED: Better positioned cart icon with click handler */}
           <button
             onClick={handleCartClick}
-            className="cart-icon"
+            className="cart-icon fancy-cart"
             style={{
               position: 'fixed',
-              right: session?.user ? '90px' : '140px',
+              right: `${cartButtonRight}px`,
               top: '20px',
               fontSize: '1.4rem',
               cursor: 'pointer',
-              background: 'rgba(0, 0, 0, 0.8)',
-              borderRadius: '50px',
-              padding: '10px',
-              border: 'none',
+              padding: '12px',
+              border: '1px solid rgba(255,255,255,0.2)',
               zIndex: 200,
-              transition: 'transform 0.3s ease, background 0.3s ease',
+              transition: 'transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease',
+              background: 'linear-gradient(135deg, #123036, #1a4d56)',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.35), 0 0 12px rgba(46,185,185,0.45)',
+              borderRadius: '999px',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'scale(1.1)';
-              e.currentTarget.style.background = 'rgba(0, 0, 0, 1)';
+              e.currentTarget.style.transform = 'scale(1.08) translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 12px 34px rgba(0,0,0,0.45), 0 0 16px rgba(46,185,185,0.6)';
+              e.currentTarget.style.background = 'linear-gradient(135deg, #1c5963, #267b86)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
+              e.currentTarget.style.boxShadow = '0 10px 30px rgba(0,0,0,0.35), 0 0 12px rgba(46,185,185,0.45)';
+              e.currentTarget.style.background = 'linear-gradient(135deg, #123036, #1a4d56)';
             }}
           >
             🛒
@@ -299,78 +329,39 @@ export default function Page() {
       </header>
 
       {isAdmin && (
-        <>
+        <div
+          style={{
+            position: "fixed",
+            top: "100px",
+            left: "30px",
+            zIndex: 100,
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px",
+          }}
+        >
           <button
-            onClick={() => setShowAdminPanel(true)}
-            style={{
-              position: "fixed",
-              bottom: "24px",
-              right: "24px",
-              zIndex: 120,
-              background: "#0f6d66",
-              color: "white",
-              border: "none",
-              padding: "12px 18px",
-              borderRadius: "999px",
-              cursor: "pointer",
-              fontWeight: 700,
-              boxShadow: "0 12px 28px rgba(0,0,0,0.25)",
-              letterSpacing: "0.3px",
-            }}
+            onClick={() => setShowAdminPanel(!showAdminPanel)}
+            className="admin-panel-btn"
           >
-            Admin Panel
+            {showAdminPanel ? "Close Admin Panel" : "Admin Panel"}
           </button>
+        </div>
+      )}
 
-          {showAdminPanel && (
-            <div
-              style={{
-                position: "fixed",
-                inset: 0,
-                background: "rgba(0,0,0,0.6)",
-                backdropFilter: "blur(6px)",
-                zIndex: 110,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "24px",
-              }}
-              onClick={() => setShowAdminPanel(false)}
-            >
-              <div
-                style={{
-                  position: "relative",
-                  width: "100%",
-                  maxWidth: "960px",
-                  maxHeight: "90vh",
-                  overflow: "auto",
-                  borderRadius: "16px",
-                  background: "white",
-                  boxShadow: "0 16px 48px rgba(0,0,0,0.35)",
-                  padding: "16px",
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  onClick={() => setShowAdminPanel(false)}
-                  style={{
-                    position: "absolute",
-                    top: "12px",
-                    right: "12px",
-                    background: "transparent",
-                    border: "none",
-                    fontSize: "20px",
-                    cursor: "pointer",
-                    color: "#0f6d66",
-                  }}
-                  aria-label="Close admin panel"
-                >
-                  ×
-                </button>
-                <AdminProductManager onProductAdded={handleProductAdded} />
-              </div>
-            </div>
-          )}
-        </>
+      {isAdmin && adminPanelVisible && (
+        <div
+          className={`admin-panel-surface ${showAdminPanel ? "open" : "closing"}`}
+          style={{
+            position: "fixed",
+            top: "160px",
+            left: "30px",
+            zIndex: 99,
+            width: "fit-content",
+          }}
+        >
+          <AdminProductManager onProductAdded={handleProductAdded} />
+        </div>
       )}
 
       <section className="products-wrap">
@@ -456,6 +447,18 @@ export default function Page() {
             onClearCart={clearCart}
           />
         </>
+      )}
+
+      {toast && (
+        <div
+          className={`toast ${toast.type}`}
+          style={{
+            right: `${cartButtonRight + 200}px`,
+            top: '24px',
+          }}
+        >
+          {toast.message}
+        </div>
       )}
     </main>
   );

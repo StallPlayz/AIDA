@@ -128,34 +128,54 @@ export async function POST(request: Request) {
 
     // Create payment based on type
     if (paymentType === 'QRIS') {
-      const qrisResult = await xenditService.createQRIS({
-        externalId: purchase.id,
+      // Use hosted invoice flow like credit card
+      const invoiceResult = await xenditService.createInvoice({
+        externalId: `${purchase.id}-invoice`,
         amount: totalAmount,
-        callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/xendit-callback`,
+        payerEmail: user.email,
+        description: `Purchase ${purchase.id}`,
+        items: xenditItems,
+        paymentMethods: ['QRIS'],
       });
 
-      if (!qrisResult.success || !qrisResult.data) {
-        throw new Error(qrisResult.error || 'Failed to create QRIS payment');
+      if (!invoiceResult.success || !invoiceResult.data) {
+        throw new Error(invoiceResult.error || 'Failed to create invoice');
       }
 
       paymentData = {
-        type: 'QRIS',
-        qrString: qrisResult.data.qr_string,
-        qrCodeUrl: qrisResult.data.qr_string,
+        type: 'INVOICE',
+        invoiceUrl: invoiceResult.data.invoice_url || invoiceResult.data.invoiceUrl,
+        expiryTime: invoiceResult.data.expiry_date
+          ? new Date(invoiceResult.data.expiry_date)
+          : new Date(Date.now() + 24 * 60 * 60 * 1000),
+        xenditId: invoiceResult.data.id,
         amount: totalAmount,
-        expiryTime: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        xenditId: qrisResult.data.id,
-        merchantName: 'AIDA Creative',
-        instructions: [
-          'Open your mobile banking or e-wallet app',
-          'Select "Scan QR" or "QRIS"',
-          'Scan the QR code displayed',
-          'Confirm the payment amount',
-          'Enter your PIN to complete payment'
-        ]
       };
 
     } else if (paymentType === 'BANK_TRANSFER') {
+      // Create hosted invoice so user can open a payment page as well
+      let bankInvoiceUrl: string | undefined;
+      try {
+        const invoiceResult = await xenditService.createInvoice({
+          externalId: `${purchase.id}-invoice`,
+          amount: totalAmount,
+          payerEmail: user.email,
+          description: `Purchase ${purchase.id}`,
+          items: xenditItems,
+        });
+
+        if (invoiceResult.success && invoiceResult.data) {
+          bankInvoiceUrl =
+            invoiceResult.data.invoice_url || invoiceResult.data.invoiceUrl;
+        } else {
+          console.error('Bank Transfer invoice creation failed:', invoiceResult.error);
+          throw new Error(invoiceResult.error || 'Failed to create bank invoice');
+        }
+      } catch (err) {
+        console.error('Bank Transfer invoice creation error:', err);
+        throw err;
+      }
+
       const bankCodeMap: { [key: string]: string } = {
         'BCA': 'BCA',
         'MANDIRI': 'MANDIRI',
@@ -184,27 +204,41 @@ export async function POST(request: Request) {
         amount: totalAmount,
         expiryTime: new Date(vaResult.data.expiration_date),
         xenditId: vaResult.data.id,
+        invoiceUrl: bankInvoiceUrl,
       };
 
     } else if (paymentType === 'E_WALLET') {
-      const ewalletResult = await xenditService.createEWallet({
-        externalId: purchase.id,
+      const ewalletMethodMap: Record<string, string> = {
+        DANA: 'DANA',
+        OVO: 'OVO',
+        GOPAY: 'GOPAY',
+        SHOPEEPAY: 'SHOPEEPAY',
+      };
+      const selectedEwallet = ewalletMethodMap[paymentMethod] || 'DANA';
+
+      // Use hosted invoice flow similar to card (let Xendit decide available methods)
+      const invoiceResult = await xenditService.createInvoice({
+        externalId: `${purchase.id}-invoice`,
         amount: totalAmount,
-        phone: whatsapp,
-        ewalletType: paymentMethod as any,
+        payerEmail: user.email,
+        description: `Purchase ${purchase.id}`,
+        items: xenditItems,
+        paymentMethods: [selectedEwallet],
       });
 
-      if (!ewalletResult.success || !ewalletResult.data) {
-        throw new Error(ewalletResult.error || 'Failed to create e-wallet payment');
+      if (!invoiceResult.success || !invoiceResult.data) {
+        console.error("E-WALLET invoice error:", invoiceResult.error);
+        throw new Error(invoiceResult.error || 'Failed to create invoice');
       }
 
       paymentData = {
-        type: 'E_WALLET',
-        provider: paymentMethod,
-        checkoutUrl: ewalletResult.data.actions?.desktop_web_checkout_url || ewalletResult.data.actions?.mobile_web_checkout_url,
-        mobileUrl: ewalletResult.data.actions?.mobile_deeplink,
-        expiryTime: new Date(Date.now() + 15 * 60 * 1000),
-        xenditId: ewalletResult.data.id,
+        type: 'INVOICE',
+        invoiceUrl: invoiceResult.data.invoice_url || invoiceResult.data.invoiceUrl,
+        expiryTime: invoiceResult.data.expiry_date
+          ? new Date(invoiceResult.data.expiry_date)
+          : new Date(Date.now() + 24 * 60 * 60 * 1000),
+        xenditId: invoiceResult.data.id,
+        amount: totalAmount,
       };
 
     } else {

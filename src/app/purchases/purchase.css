@@ -466,6 +466,19 @@
   opacity: 1;
   transform: translateY(0);
 }
+
+/* Page shell to remove stray white edges */
+.library-page {
+  min-height: 100vh;
+  background: radial-gradient(circle at 20% 20%, rgba(46, 185, 185, 0.08), transparent 25%),
+              radial-gradient(circle at 80% 0%, rgba(36, 110, 118, 0.08), transparent 22%),
+              #0f0f10;
+}
+
+html, body {
+  background: #0f0f10;
+}
+
 /* HERO with big SHOP text */
 .hero {
   background: linear-gradient(180deg, #237b79, #2e9aa1);

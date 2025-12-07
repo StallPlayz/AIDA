@@ -15,6 +15,7 @@ export default function ProductModal({
 }) {
   const [closing, setClosing] = useState(false);
   const [views, setViews] = useState(product.viewCount ?? 0);
+  const [descExpanded, setDescExpanded] = useState(false);
   const hasIncrementedRef = useRef<string | null>(null);
   const { finalPrice, discountPercent } = computeDiscountedPrice(
     product.price,
@@ -77,7 +78,20 @@ export default function ProductModal({
               <div className="modal-info">
                 <h4 className="modal-sub">{product.subtitle}</h4>
                 <h2 className="modal-title">{product.title}</h2>
-                <p className="modal-desc">{product.description}</p>
+                <div
+                  className={`modal-desc ${descExpanded ? 'expanded' : 'collapsed'}`}
+                >
+                  {product.description}
+                </div>
+                {product.description.length > 180 && (
+                  <button
+                    type="button"
+                    className="read-toggle"
+                    onClick={() => setDescExpanded((v) => !v)}
+                  >
+                    {descExpanded ? 'Read less' : 'Read more'}
+                  </button>
+                )}
 
                 <div className="modal-bottom">
                   <div className="modal-price-block">

@@ -3,6 +3,8 @@
 
 const XENDIT_SECRET_KEY = process.env.XENDIT_SECRET_KEY || '';
 const XENDIT_API_URL = 'https://api.xendit.co';
+// Centralize app URL so callback/redirect URLs are always valid
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
 
 const xenditHeaders = {
   'Authorization': `Basic ${Buffer.from(XENDIT_SECRET_KEY + ':').toString('base64')}`,
@@ -50,8 +52,8 @@ export const xenditService = {
           payer_email: params.payerEmail,
           description: params.description,
           invoice_duration: 86400,
-          success_redirect_url: params.successRedirectUrl || `${process.env.NEXT_PUBLIC_APP_URL}/payment/success`,
-          failure_redirect_url: params.failureRedirectUrl || `${process.env.NEXT_PUBLIC_APP_URL}/payment/failed`,
+          success_redirect_url: params.successRedirectUrl || `${APP_URL}/payment/success`,
+          failure_redirect_url: params.failureRedirectUrl || `${APP_URL}/payment/failed`,
           currency: 'IDR',
           items: params.items,
           should_send_email: false,
@@ -106,7 +108,7 @@ export const xenditService = {
       const requestBody = {
         external_id: params.externalId,
         type: 'DYNAMIC',
-        callback_url: params.callbackUrl || `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/xendit-callback`,
+        callback_url: params.callbackUrl || `${APP_URL}/api/payments/xendit-callback`,
         amount: amount.toString(), // Xendit expects string for QRIS
       };
 
@@ -267,9 +269,10 @@ export const xenditService = {
         checkout_method: 'ONE_TIME_PAYMENT',
         channel_code: channelCodeMap[params.ewalletType],
         channel_properties: {
-          success_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment/success`,
-          failure_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment/failed`,
+          success_redirect_url: `${APP_URL}/payment/success`,
+          failure_redirect_url: `${APP_URL}/payment/failed`,
         },
+        callback_url: `${APP_URL}/api/payments/xendit-callback`,
       };
 
       // Add mobile number for all e-wallets (Xendit requires it)

@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     }
 
     if (status === 'success') {
-      const transactionId = `TXN-${Date.now()}`;
+      const transactionId = purchase.transactionId || `TXN-${Date.now()}`;
       
       const updatedPurchase = await prisma.purchase.update({
         where: { id: purchaseId },
@@ -89,20 +89,24 @@ export async function POST(request: Request) {
 
       // Send email notification
       if (purchase.user.email) {
-        await sendPaymentReceipt({
-          to: purchase.user.email,
-          userName: purchase.user.name || 'Customer',
-          purchaseId,
-          transactionId,
-          items: purchase.items.map(item => ({
-            title: item.product.title,
-            price: item.priceAtPurchase,
-            quantity: 1,
-          })),
-          totalAmount: purchase.totalAmount,
-          paymentMethod: purchase.paymentMethod || 'E_WALLET',
-          completedAt: updatedPurchase.completedAt!,
-        });
+        try {
+          await sendPaymentReceipt({
+            to: purchase.user.email,
+            userName: purchase.user.name || 'Customer',
+            purchaseId,
+            transactionId,
+            items: purchase.items.map(item => ({
+              title: item.product.title,
+              price: item.priceAtPurchase,
+              quantity: 1,
+            })),
+            totalAmount: purchase.totalAmount,
+            paymentMethod: purchase.paymentMethod || 'E_WALLET',
+            completedAt: updatedPurchase.completedAt!,
+          });
+        } catch (err) {
+          console.error("Failed to send payment receipt email:", err);
+        }
       }
 
       return NextResponse.json({

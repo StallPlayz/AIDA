@@ -58,7 +58,7 @@ export default function ProductCard({
       <div className="card-body">
         <h3 className="card-title">{product.title}</h3>
         <p className="card-sub">{product.subtitle}</p>
-        <p className="card-desc">{product.description}</p>
+        <p className="card-desc clamped-desc">{product.description}</p>
         <div className="card-footer">
           <div className="price-group">
             {hasDiscount && <span className="price-old">IDR{product.price}</span>}

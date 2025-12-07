@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../contexts/LanguageContext';
 import LoginPopup from './LoginPopup';
+import './auth-button.css';
 
 export default function AuthButton() {
   const { data: session, status } = useSession();
@@ -298,28 +299,7 @@ export default function AuthButton() {
         >
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            style={{
-              background: '#246E76',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '50%',
-              width: '50px',
-              height: '50px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '20px',
-              fontWeight: 'bold',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-              transition: 'transform 0.2s ease',
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.transform = 'scale(1.05)')
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.transform = 'scale(1)')
-            }
+            className="auth-avatar-btn"
           >
             {session.user.name?.charAt(0).toUpperCase() ||
               session.user.email?.charAt(0).toUpperCase() ||
@@ -526,29 +506,12 @@ export default function AuthButton() {
       <>
         <button
           onClick={() => setShowLogin(true)}
+          className="auth-login-btn"
           style={{
             position: 'fixed',
             top: '20px',
             right: '30px',
-            background: '#2fafbeff',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '10px',
-            padding: '10px 18px',
-            fontFamily: 'Poppins, sans-serif',
-            fontWeight: 500,
-            cursor: 'pointer',
             zIndex: 200,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-            transition: 'transform 0.2s ease, background 0.2s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.05)';
-            e.currentTarget.style.background = '#2fafbeff';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.background = '#2fafbeff';
           }}
         >
           {t.auth.login}
