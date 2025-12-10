@@ -187,16 +187,11 @@ export default function Page() {
   };
 
   const handleCartClick = () => {
-    console.log("Cart clicked! Session:", session);
-    console.log("Cart items:", cartItems);
-    console.log("Current cartOpen state:", cartOpen);
-    
     if (!session?.user) {
       showToast("Please login to view your cart", "info");
       return;
     }
-    
-    console.log("Opening cart...");
+
     setCartOpen(true);
   };
 
@@ -455,10 +450,8 @@ export default function Page() {
 
       {cartOpen && (
         <>
-          {console.log("Rendering CartModal with:", { cartOpen, itemsCount: cartItemsForModal.length })}
           <CartModal
             onClose={() => {
-              console.log("Closing cart");
               setCartOpen(false);
             }}
             items={cartItemsForModal}

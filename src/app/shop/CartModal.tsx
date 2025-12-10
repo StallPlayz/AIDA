@@ -159,7 +159,6 @@ export default function ImprovedCartModal({
           if (!response.ok) return;
 
           const data = await response.json();
-          console.log("Payment check result:", data);
 
           if (data.status === "COMPLETED") {
             if (autoCheckInterval) {

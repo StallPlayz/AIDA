@@ -112,8 +112,6 @@ export const xenditService = {
         amount: amount.toString(), // Xendit expects string for QRIS
       };
 
-      console.log('QRIS request:', JSON.stringify(requestBody, null, 2));
-
       const response = await fetch(`${XENDIT_API_URL}/qr_codes`, {
         method: 'POST',
         headers: xenditHeaders,
@@ -121,7 +119,6 @@ export const xenditService = {
       });
 
       const responseText = await response.text();
-      console.log('QRIS response:', responseText);
 
       if (!response.ok) {
         let error;
@@ -278,8 +275,6 @@ export const xenditService = {
       // Add mobile number for all e-wallets (Xendit requires it)
       requestBody.channel_properties.mobile_number = formattedPhone;
 
-      console.log('E-wallet request:', JSON.stringify(requestBody, null, 2));
-
       const response = await fetch(`${XENDIT_API_URL}/ewallets/charges`, {
         method: 'POST',
         headers: xenditHeaders,
@@ -287,7 +282,6 @@ export const xenditService = {
       });
 
       const responseText = await response.text();
-      console.log('E-wallet response:', responseText);
 
       if (!response.ok) {
         let error;

@@ -44,8 +44,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { items, paymentMethod, paymentType, username, whatsapp } = body;
 
-    console.log('Payment create request:', { items, paymentMethod, paymentType, username, whatsapp });
-
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
         { error: "Items are required" },

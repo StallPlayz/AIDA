@@ -199,7 +199,6 @@ export async function sendPaymentReceipt({
       html: htmlContent,
     });
 
-    console.log('Payment receipt email sent successfully to:', to);
     return { success: true };
   } catch (error) {
     console.error('Error sending email:', error);

@@ -69,9 +69,7 @@ export async function PUT(
     if (rateLimited) return rateLimited;
 
     const session = await getServerSession(authOptions);
-    
-    console.log("Update request - Session:", session);
-    
+
     if (!session?.user?.email) {
       return NextResponse.json(
         { error: "Unauthorized" },
@@ -84,8 +82,6 @@ export async function PUT(
       select: { role: true },
     });
 
-    console.log("Update request - User:", user);
-
     if (user?.role !== "ADMIN") {
       return NextResponse.json(
         { error: "Forbidden - Admin access required" },
@@ -95,9 +91,6 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    
-    console.log("Update request - ID:", id);
-    console.log("Update request - Body:", body);
 
     // Validate required fields
     if (!body.title || !body.description || !body.price || !body.thumbnailUrl) {
@@ -141,8 +134,6 @@ export async function PUT(
           : 0,
       },
     });
-
-    console.log("Update request - Updated product:", product);
 
     return NextResponse.json(product);
   } catch (error) {

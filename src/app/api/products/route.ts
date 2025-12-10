@@ -38,9 +38,7 @@ export async function POST(request: Request) {
     if (rateLimited) return rateLimited;
 
     const session = await getServerSession(authOptions);
-    
-    console.log("Session:", session);
-    
+
     if (!session?.user?.email) {
       return NextResponse.json(
         { error: "Unauthorized - Please login" },
@@ -52,8 +50,6 @@ export async function POST(request: Request) {
       where: { email: session.user.email },
       select: { role: true, email: true },
     });
-
-    console.log("User found:", user);
 
     if (!user) {
       return NextResponse.json(
@@ -70,8 +66,6 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    console.log("Request body:", body);
-    
     const {
       title,
       subtitle,
@@ -139,8 +133,6 @@ export async function POST(request: Request) {
         discountValue: isNaN(parsedDiscountValue) ? 0 : parsedDiscountValue,
       },
     });
-
-    console.log("Product created:", product);
 
     return NextResponse.json(product, { status: 201 });
   } catch (error) {

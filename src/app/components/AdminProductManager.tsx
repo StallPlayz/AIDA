@@ -760,8 +760,6 @@ export default function AdminProductManager({
         return null;
       }
 
-      console.log("Starting upload for:", webpFile.name, webpFile.type, webpFile.size);
-
       const formData = new FormData();
       formData.append("file", webpFile);
 
@@ -769,8 +767,6 @@ export default function AdminProductManager({
         method: "POST",
         body: formData,
       });
-
-      console.log("Upload response status:", response.status);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -781,7 +777,6 @@ export default function AdminProductManager({
       }
 
       const data = await response.json();
-      console.log("Upload successful:", data);
 
       setError(""); // Clear any previous errors
       return data.url;

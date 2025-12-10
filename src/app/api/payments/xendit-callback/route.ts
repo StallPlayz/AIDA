@@ -6,8 +6,6 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    console.log("Xendit callback received:", body);
-
     // Verify callback token
     const callbackToken = request.headers.get("x-callback-token");
     if (callbackToken !== process.env.XENDIT_CALLBACK_TOKEN) {
