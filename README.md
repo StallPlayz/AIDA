@@ -2,7 +2,7 @@
 
 This is an e-commerce website team project that we make for AIDA Creative Agency
 
-(Jika ingin run dev, harus membuat next js app dan install semua dependency nya terlebih dahulu)
+(Demo tersedia hanya jika request)
 
 # Roadmap
 
